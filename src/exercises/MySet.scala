@@ -11,12 +11,28 @@ trait MySet[A] extends (A => Boolean) {
 
   def contains (elem: A): Boolean
   def +(elem: A): MySet[A]
-  def ++(anotherSet: MySet[A]): MySet[A]
+  def ++(anotherSet: MySet[A]): MySet[A] // union
 
   def map[B](f: A => B): MySet[B]
   def flatMap[B](f: A => MySet[B]): MySet[B]
   def filter(predicate: A => Boolean): MySet[A]
   def foreach(f: A => Unit): Unit
+
+  /*
+    Exercise: implement
+    - removing an element
+    - intersection with another set
+    - difference with another set
+   */
+  def -(elem: A): MySet[A]
+  def --(anotherSet: MySet[A]): MySet[A] // difference
+  def &(anotherSet: MySet[A]): MySet[A] // intersection
+
+  /*
+    Exercise - implement a unary_! = NEGATION of a set
+    Set[1, 2, 3] =
+   */
+  def unary_! : MySet[A]
 }
 
 class EmptySet[A] extends MySet[A] {
@@ -28,7 +44,43 @@ class EmptySet[A] extends MySet[A] {
   def flatMap[B](f: A => MySet[B]): MySet[B] = new EmptySet[B]
   def filter(predicate: A => Boolean): MySet[A] = this
   def foreach(f: A => Unit): Unit = ()
+
+  // part 2
+  def -(elem: A): MySet[A] = this
+  def --(anotherSet: MySet[A]): MySet[A] = this
+  def &(anotherSet: MySet[A]): MySet[A] = this
+
+  def unary_! : MySet[A] = new PropertyBaseSet[A](_ => true)
 }
+
+// all elements of type A which satisfy a property
+// { x in A | property(x) }
+class PropertyBaseSet[A](property: A => Boolean) extends MySet[A] {
+  def contains (elem: A): Boolean  = property(elem)
+
+  // { x in A | property(A) } + element = { x in A | property(x) || x == element }
+  def +(elem: A): MySet[A] =
+    new PropertyBaseSet[A](x => property(x) || x == elem)
+
+  // { x in A | property(A) } + set => { x in A | property(A) || set contains x }
+  def ++(anotherSet: MySet[A]): MySet[A] =
+    new PropertyBaseSet[A](x => property(x) || anotherSet(x))
+
+  // all integers => (_ % 3) => [0 1 2]
+  def map[B](f: A => B): MySet[B] = politeFail
+  def flatMap[B](f: A => MySet[B]): MySet[B] = politeFail
+  def foreach(f: A => Unit): Unit = politeFail
+  def filter(predicate: A => Boolean): MySet[A] =
+    new PropertyBaseSet[A](x => property(x) && predicate(x))
+
+  def -(elem: A): MySet[A] = filter(x => x != elem)
+  def --(anotherSet: MySet[A]): MySet[A] = filter(!anotherSet)
+  def &(anotherSet: MySet[A]): MySet[A] = filter(anotherSet)
+  def unary_! : MySet[A] = new PropertyBaseSet[A](x => !property(x))
+
+  def politeFail = throw new IllegalArgumentException("Really deep rabbit hole!")
+}
+
 class NonEmptySet[A](head: A, tail: MySet[A]) extends MySet[A] {
   def contains (elem: A): Boolean =
     elem == head || tail.contains(elem)
@@ -62,6 +114,17 @@ class NonEmptySet[A](head: A, tail: MySet[A]) extends MySet[A] {
     f(head)
     tail foreach f
   }
+
+  // part 2
+  def -(elem: A): MySet[A] =
+    if (head == elem) tail
+    else tail - elem + head
+
+  def --(anotherSet: MySet[A]): MySet[A] = filter(x => !anotherSet(x))
+  def &(anotherSet: MySet[A]): MySet[A] = filter(anotherSet) // intersection = filter
+
+  def unary_! : MySet[A] = new PropertyBaseSet[A](x => !this.contains(x))
+
 }
 
 
@@ -101,4 +164,14 @@ object MySetPlayground extends App {
   s + 5 ++ MySet(1, -1) + 3 flatMap (x => MySet(x, 10 *x)) foreach println
   println("--------filter-------------")
   s + 5 ++ MySet(1, -1) + 3 flatMap (x => MySet(x, 10 *x)) filter (_ % 2 == 0) foreach println
+
+  val negative = !s // s.unary_! = all the natural not equals to  1,2,3,4
+  println(negative(2))
+  println(negative(5))
+
+  val negativeEven = negative.filter(_ % 2 == 0)
+  println(negativeEven(5))
+
+  val negativeEven5 = negativeEven + 5 // all the even number > 4 + 5
+  println(negativeEven5(5))
 }
